@@ -291,16 +291,16 @@ using login credentials. And interact using below questions:
 
 1.  List all the non-compliant S3 buckets
 
-![](images/Demo1.png){width="6.5in" height="3.5104166666666665in"}
+![](images/Demo1.png)
 
 2.  When was the bucket "name of the bucket" created and when did it
     turn non-compliant
 
-![](images/Demo2.png){width="6.5in" height="2.8333333333333335in"}
+![](images/Demo2.png)
 
 3.  How can we remediate the non-compliant bucket "name of the bucket"
 
-![](images/Demo3.png){width="6.489583333333333in" height="3.625in"}
+![](images/Demo3.png)
 
 ### Conclusion
 
