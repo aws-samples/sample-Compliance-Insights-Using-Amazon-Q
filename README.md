@@ -140,10 +140,8 @@ aws iam attach-role-policy \
 Using AWS CLI on the audit account, deploy the solution.
 
 ```bash
-git clone git@ssh.gitlab.aws.dev:cca-ambassadors/compliance-insights-using-amazon-q.git
-
-cd Compliance-Insights-using-Amazon-Q
-
+git clone https://github.com/aws-samples/sample-Compliance-Insights-Using-Amazon-Q
+cd sample-Compliance-Insights-using-Amazon-Q
 sam deploy ---guided ---capabilities CAPABILITY_NAMED_IAM
 
 ```
