@@ -1,0 +1,9 @@
+{
+  "source_bucket": "aws-controltower-logs-123456789012-us-east-1",
+  "destination_bucket": "qbucket-123456789012",
+  "source_prefix": "optional/source/prefix/",
+  "destination_prefix": "optional/destination/prefix/",
+  "account_list": ["123456789012","900987654321"],
+  "region_list": ["us-east-1", "eu-west-1"]
+}
+
