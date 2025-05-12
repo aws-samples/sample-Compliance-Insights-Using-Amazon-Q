@@ -1,0 +1,232 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Description: 'CloudFormation template for Amazon Q Business with S3 data source, group-based access, and custom web experience'
+
+Parameters:
+  QBusinessApplicationName:
+    Type: String
+    Description: Name for the Amazon Q Business application
+    Default: QConfigApp
+
+  S3BucketName:
+    Type: String
+    Description: Name of the S3 bucket to use as data source
+    Default: qconfigbucket
+
+  UseIDC:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Default: true
+    Description: "Set to 'true' if you want to use IAM Identity Center (IDC)."
+
+  UseIdP:
+    Type: String
+    AllowedValues:
+      - true
+      - false
+    Default: false
+    Description: "Set to 'true' if you want to use an external Identity Provider (IdP)."
+
+  IdentityCenterArn:
+    Type: String
+    Default: "arn:aws:sso:::instance/ssoins-72239d51ede010fb"
+    Description: "The ARN of the IAM Identity Center instance. Required if UseIDC is set to 'yes'."
+
+  ExternalIdPArn:
+    Type: String
+    Default: ""
+    Description: "The ARN of the external IdP (OIDC/SAML). Required if UseIdP is set to 'yes'."
+
+Conditions:
+  HasIDC: !And
+    - !Equals [!Ref UseIDC, "true"]
+    - !Not [!Equals [!Ref IdentityCenterArn, ""]]
+  HasIdP: !And
+    - !Equals [!Ref UseIdP, "true"]
+    - !Not [!Equals [!Ref ExternalIdPArn, ""]]
+
+Resources:
+  QBusinessApplication:
+    Type: AWS::QBusiness::Application
+    Properties:
+      DisplayName: !Ref QBusinessApplicationName
+      IdentityCenterInstanceArn: !If
+        - HasIDC
+        - !Ref IdentityCenterArn
+        - !Ref "AWS::NoValue"
+      IamIdentityProviderArn: !If
+        - HasIdP
+        - !Ref ExternalIdPArn
+        - !Ref "AWS::NoValue"
+      AttachmentsConfiguration:
+        AttachmentsControlMode: ENABLED
+      Description: Amazon Q Business Application for AWS Config
+
+  QBusinessIndex:
+    Type: AWS::QBusiness::Index
+    Properties:
+      ApplicationId: !Ref QBusinessApplication
+      CapacityConfiguration:
+        Units: 1
+      Description: Amazon Q Business Index
+      DisplayName: MyQBusinessIndex
+      Type: STARTER
+
+  QBusinessRetriever:
+    Type: AWS::QBusiness::Retriever
+    Properties:
+      ApplicationId: !Ref QBusinessApplication
+      Configuration:
+        NativeIndexConfiguration:
+          IndexId: !GetAtt QBusinessIndex.IndexId
+      DisplayName: MyQBusinessRetriever
+      Type: NATIVE_INDEX
+
+  QBusinessDataSourceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          Condition:
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+          Effect: Allow
+          Principal:
+            Service: qbusiness.amazonaws.com
+        Version: '2012-10-17'
+
+  QBusinessDataSourcePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: QBusinessDataSourcePolicy
+      Roles:
+        - !Ref QBusinessDataSourceRole
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Action:
+          - qbusiness:PutGroup
+          - qbusiness:CreateUser
+          - qbusiness:DeleteGroup
+          - qbusiness:UpdateUser
+          - qbusiness:ListGroups
+          - qbusiness:BatchPutDocument
+          - qbusiness:BatchDeleteDocument
+          Effect: Allow
+          Resource:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:qbusiness:'
+              - Ref: AWS::Region
+              - ":"
+              - Ref: AWS::AccountId
+              - ":application/*"
+        - Effect: Allow
+          Action:
+            - s3:GetObject
+          Resource: !Sub 'arn:aws:s3:::${S3BucketName}/*'
+        - Effect: Allow
+          Action:
+            - s3:ListBucket
+          Resource: !Sub 'arn:aws:s3:::${S3BucketName}'
+
+  QBusinessDataSource:
+    Type: AWS::QBusiness::DataSource
+    Properties:
+      ApplicationId: !Ref QBusinessApplication
+      Description: Amazon Q Business Data Source
+      DisplayName: MyS3DataSource
+      IndexId: !GetAtt QBusinessIndex.IndexId
+      RoleArn: !GetAtt QBusinessDataSourceRole.Arn
+      Configuration:
+        type: S3
+        syncMode: FULL_CRAWL
+        connectionConfiguration:
+          repositoryEndpointMetadata:
+            BucketName: !Ref S3BucketName
+        repositoryConfigurations:
+          document:
+            fieldMappings:
+              - dataSourceFieldName: content
+                indexFieldName: document_content
+                indexFieldType: STRING
+
+  QBusinessWebExperienceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Statement:
+        - Action:
+          - sts:AssumeRole
+          - sts:SetContext
+          Condition:
+            StringEquals:
+              aws:SourceAccount:
+                Ref: AWS::AccountId
+          Effect: Allow
+          Principal:
+            Service: application.qbusiness.amazonaws.com
+        Version: '2012-10-17'
+
+  QBusinessWebExperiencePolicy:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: QBusinessWebExperiencePolicy
+      Roles:
+        - !Ref QBusinessWebExperienceRole
+      PolicyDocument:
+        Statement:
+        - Action:
+          - qbusiness:Chat
+          - qbusiness:ChatSync
+          - qbusiness:DeleteConversation
+          - qbusiness:GetApplication
+          - qbusiness:GetChatControlsConfiguration
+          - qbusiness:GetWebExperience
+          - qbusiness:ListConversations
+          - qbusiness:ListMessages
+          - qbusiness:ListPlugins
+          - qbusiness:PutFeedback
+          Effect: Allow
+          Resource:
+            Fn::Join:
+            - ''
+            - - 'arn:aws:qbusiness:'
+              - Ref: AWS::Region
+              - ":"
+              - Ref: AWS::AccountId
+              - ":application/*"
+        Version: '2012-10-17'
+
+  QBusinessWebExperience:
+    Type: AWS::QBusiness::WebExperience
+    Properties:
+      ApplicationId: !Ref QBusinessApplication
+      BrowserExtensionConfiguration:
+        EnabledBrowserExtensions:
+          - CHROME
+          - FIREFOX
+      RoleArn: !GetAtt QBusinessWebExperienceRole.Arn
+      Title: Amazon Q for Compliance
+      WelcomeMessage: Welcome to Amazon Q Business
+
+Outputs:
+  QBusinessApplicationId:
+    Description: ID of the created Amazon Q Business application
+    Value: !Ref QBusinessApplication
+
+  QBusinessDataSourceId:
+    Description: ID of the created S3 data source
+    Value: !Ref QBusinessDataSource
+
+  QBusinessWebExperienceURL:
+    Description: URL for the Q Business Web  Experience
+    Value: !GetAtt QBusinessWebExperience.DefaultEndpoint
+
+  QBusinessIndexId:
+    Description: ID of the created Q Business Index
+    Value: !GetAtt QBusinessIndex.IndexId

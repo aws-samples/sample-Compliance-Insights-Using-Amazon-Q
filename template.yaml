@@ -1,0 +1,176 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: SAM template for Config Data Transform Lambda in Control Tower Audit Account
+
+Parameters:
+  SourceBucketArn:
+    Type: String
+    Description: ARN of the source S3 bucket in Log Archive account(e.g., arn:aws:s3:::aws-controltower-logs-XXXXXXXXXXXX-region)
+    AllowedPattern: ^arn:aws:s3:::[a-z0-9-]+$
+    ConstraintDescription: Must be a valid S3 bucket ARN
+
+  AccountList:
+    Type: String
+    Description: Comma-separated list of AWS account numbers
+    AllowedPattern: ^$|^[0-9,]+$
+    ConstraintDescription: Must be a comma-separated list of AWS account numbers
+
+  RegionList:
+    Type: String
+    Description: Comma-separated list of AWS regions
+    AllowedPattern: ^$|^[a-z0-9-,]+$
+    ConstraintDescription: Must be a comma-separated list of AWS regions
+
+  SourceAccountId:
+    Type: String
+    Description: AWS Account ID where the source S3 bucket resides
+    AllowedPattern: ^\d{12}$
+    ConstraintDescription: Must be a valid 12-digit AWS account ID
+
+Globals:
+  Function:
+    Timeout: 900  # 15 minutes
+    MemorySize: 512
+    Runtime: python3.13
+    Architectures:
+      - arm64
+
+Resources:
+  # Destination S3 Bucket
+  DestinationBucket:
+    Type: AWS::S3::Bucket
+    DeletionPolicy: Retain
+    UpdateReplacePolicy: Retain
+    Properties:
+      VersioningConfiguration:
+        Status: Enabled
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      LifecycleConfiguration:
+        Rules:
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpiration:
+              NoncurrentDays: 90
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 7
+
+  # Lambda Execution Role
+  LambdaExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3AccessPolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              # Access to destination bucket (same account)
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                  - s3:GetBucketLocation
+                  - s3:HeadBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${DestinationBucket}
+                  - !Sub arn:aws:s3:::${DestinationBucket}/*
+        - PolicyName: STSAssumeRolePolicy
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - sts:AssumeRole
+                Resource:
+                  - !Sub arn:aws:iam::${SourceAccountId}:role/ConfigDataReadRole
+
+
+  ConfigCopyFunction:
+      Type: AWS::Serverless::Function
+      Properties:
+        CodeUri: src/
+        Handler: lambda_function.lambda_handler
+        Runtime: python3.13
+        Description: Function to copy and process Config data between S3 buckets
+        Role: !GetAtt LambdaExecutionRole.Arn
+        Timeout: 900
+        MemorySize: 512
+        Environment:
+          Variables:
+            SOURCE_BUCKET_ARN: !Ref SourceBucketArn
+            DESTINATION_BUCKET: !Ref DestinationBucket
+            ACCOUNT_LIST: !Ref AccountList
+            REGION_LIST: !Ref RegionList
+            SOURCE_ACCOUNT_ID: !Ref SourceAccountId
+
+  ConfigCopyScheduler:
+    Type: AWS::Scheduler::Schedule
+    Properties:
+      Description: Schedule to trigger Config data copy every 24 hours
+      FlexibleTimeWindow:
+        Mode: "OFF"
+      ScheduleExpression: "rate(24 hours)"
+      Target:
+        Arn: !GetAtt ConfigCopyFunction.Arn
+        RoleArn: !GetAtt SchedulerExecutionRole.Arn
+        Input: !Sub |
+          {
+            "source_bucket_arn": "${SourceBucketArn}",
+            "destination_bucket": "${DestinationBucket}",
+            "account_list": "${AccountList}",
+            "region_list": "${RegionList}"
+          }
+
+  SchedulerExecutionRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: scheduler.amazonaws.com
+            Action: sts:AssumeRole
+      Policies:
+        - PolicyName: InvokeLambdaPolicy
+          PolicyDocument:
+            Version: "2012-10-17"
+            Statement:
+              - Effect: Allow
+                Action: lambda:InvokeFunction
+                Resource: !GetAtt ConfigCopyFunction.Arn
+
+Outputs:
+  ConfigCopyFunction:
+    Description: Config Copy Lambda Function ARN
+    Value: !GetAtt ConfigCopyFunction.Arn
+
+  DestinationBucketName:
+    Description: Name of the created destination bucket
+    Value: !Ref DestinationBucket
+
+  DestinationBucketArn:
+    Description: ARN of the created destination bucket
+    Value: !GetAtt DestinationBucket.Arn
+
+  ConfigCopySchedule:
+    Description: EventBridge Schedule ARN
+    Value: !GetAtt ConfigCopyScheduler.Arn
