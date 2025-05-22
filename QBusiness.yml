@@ -30,7 +30,7 @@ Parameters:
 
   IdentityCenterArn:
     Type: String
-    Default: "arn:aws:sso:::instance/ssoins-72239d51ede010fb"
+    Default: "arn:aws:sso:::instance/ssoins-123456789abcdefg"
     Description: "The ARN of the IAM Identity Center instance. Required if UseIDC is set to 'yes'."
 
   ExternalIdPArn:
