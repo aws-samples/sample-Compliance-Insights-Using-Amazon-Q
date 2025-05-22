@@ -22,7 +22,7 @@ Our solution addresses this challenge by integrating AWS Config, Amazon S3, and 
 By implementing this solution, your security team members can easily access and understand the configuration of your AWS resources, their compliance status and identify remediation actions using simple natural language questions.
 ## The Solution Architecture
 
-![](images/SolutionArchitecture.png){width="6.5in" height="5.804861111111111in"}
+![](images/SolutionArchitecture.png)
 
 ## Prerequisites
 
@@ -197,7 +197,7 @@ The CloudFormation deployment should take a few minutes to complete.
 Once the stack is in the \"CREATE_COMPLETE\" state, you can move on to
 the next steps.
 
-### Step 4: Assign Users and Groups
+**Step 4: Assign Users and Groups**
 
 After the CloudFormation deployment, you\'ll need to manually assign
 users and groups to the Q Business application. Here\'s how:
@@ -229,7 +229,7 @@ The web experience provides a user-friendly interface for searching,
 browsing, and interacting with the compliance data stored in your S3
 bucket.
 
-**Test the solution**
+### Step 4: Test the solution
 
 In order to test the solution, we will log in Amazon Q Business App
 using login credentials. And interact using below questions:
