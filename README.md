@@ -1,102 +1,45 @@
 # Gain Compliance Insights in your AWS Environment Using Amazon Q Business
 
-Enterprise organizations managing multiple AWS accounts face complexity
-as their cloud infrastructure scales. The exponential growth in
-resources, coupled with diverse configuration requirements across
-different business units, creates significant challenges in maintaining
-effective oversight of AWS environments.\
-\
-[AWS Config](https://aws.amazon.com/config/) is a service that
-continually assesses, audits, and evaluates the configurations and
-relationships of your resources on AWS, on premises, and on other
-clouds. The AWS Config data is stored in secure Amazon S3 buckets.\
-When combined with the natural language processing capabilities of
-Amazon Q Business, this AWS Config data can be transformed into a
-powerful source of actionable intelligence.\
-\
-In this blog post, we will show how security and compliance teams can
-now use AWS Config and Amazon Q Business to gain deep visibility into
-their AWS ecosystem. By leveraging natural language queries, teams can
-effortlessly access critical compliance insights, proactively identify
-potential risks, streamline auditing processes and and make data-driven
-decisions to enhance their security framework.
+Enterprise organizations managing multiple AWS accounts face complexity as their cloud infrastructure scales. The exponential growth in resources, coupled with diverse configuration requirements across different business units, creates significant challenges in maintaining effective oversight of AWS environments.
+
+AWS Config is a service that continually assesses, audits, and evaluates the configurations and relationships of your resources on AWS, on premises, and on other clouds. The AWS Config data is stored in secure Amazon S3 buckets.
+When combined with the natural language processing capabilities of Amazon Q Business, this AWS Config data can used analyze AWS resource configurations, gaining insights and taking actions.
+
+In this blog post, we will show how security and compliance teams can now use AWS Config and Amazon Q Business to gain deep visibility into their AWS environment. By leveraging natural language queries, teams can access critical compliance insights and proactively identify potential risks and identify remediation actions.
 
 ------------------------------------------------------------------------
 
 ## Overview of the Solution
 
-Our solution addresses this challenge by integrating AWS Config, Amazon
-S3, and Amazon Q Business to create a natural language-powered interface
-for querying AWS resource configurations. Here\'s how it works:
+Our solution addresses this challenge by integrating AWS Config, Amazon S3, and Amazon Q Business to create a natural language-powered interface for querying AWS resource configurations. Here’s how it works:
 
-1.  **Extract relevant AWS Config Data** : Our solution periodically
-    extracts the AWS Config data from the central Amazon S3 Bucket for
-    the AWS Config to a secure S3 bucket in an audit account for a list
-    selected AWS Accounts and regions.
+1.  **Extract relevant AWS Config Data** : Our solution periodically extracts the AWS Config data from a central Amazon S3 Bucket and copies it to a secure S3 bucket in an audit account. This is done for a list of selected AWS Accounts and Regions.
 
-2.  **Process the Data with Amazon Q Business**: Amazon Q Business is a
-    powerful NLP service that can understand and respond to natural
-    language queries. In this solution, we\'ll configure Q Business to
-    parse the AWS Config data stored in the secure S3 bucket in your
-    audit account and create a knowledge base that can be queried using
-    natural language.
+2.  **Process the Data with Amazon Q Business**: We will then configure Q Business to parse the AWS Config data stored in the secure S3 bucket in your audit account and create a knowledge base that can be queried using natural language.
 
-3.  **Query the Knowledge Base with Natural Language**: With the
-    knowledge base created by Q Business, users can now ask natural
-    language questions about their AWS environment, such as \"Which EC2
-    instances are running in my us-west-2 account?\" or \"What is the
-    configuration of my RDS database in my development environment?\". Q
-    Business will then provide the relevant information from the
-    underlying AWS Config data.
+3.  **Query the Knowledge Base with Natural Language**: With the knowledge base created by Q Business, users can now ask natural language questions about their AWS environment, such as “Which EC2 instances are running in my us-west-2 account?” or “What is the configuration of my RDS database in my development environment?”. Q Business will then provide the relevant information from the underlying AWS Config data.
 
-By implementing this solution, your team members can easily access and
-understand the configuration of their AWS resources without requiring
-deep AWS expertise. This can help streamline decision-making, improve
-compliance monitoring, and enhance overall visibility into your cloud
-infrastructure.
-
+By implementing this solution, your security team members can easily access and understand the configuration of your AWS resources, their compliance status and identify remediation actions using simple natural language questions.
 ## The Solution Architecture
 
 ![](images/SolutionArchitecture.png){width="6.5in" height="5.804861111111111in"}
 
 ## Prerequisites
 
-In AWS Control tower managed organizations, the audit account and log
-archive account are shared accounts that is set up automatically when
-you create your landing zone. The log archive account contains a central
-Amazon S3 bucket for storing a copy of all AWS CloudTrail and AWS Config
-log files for all other accounts in your landing zone. 
+security and compliance teams. The log archive account contains a central Amazon S3 bucket for storing a copy of all logs including AWS CloudTrail and AWS Config log files for all other accounts in your AWS Organization.
 
-The audit account should be restricted to security and compliance teams
-with auditor (read-only) and administrator (full-access) cross-account
-roles to all accounts in the landing zone. These roles are intended to
-be used by security and compliance teams to perform audits through AWS
-mechanisms
+The audit account should be restricted to security and compliance teams with auditor (read-only) and administrator (full-access) cross-account roles to all accounts in the AWS Organization. These roles are intended to be used by security and compliance teams to perform audits through AWS mechanisms.
 
-This solution is designed to be deployed in the audit account which can
-provide an isolated environment to host the required AWS Config data
-required for Amazon Q Business.
+This solution is designed to be deployed in an audit account which can provide an isolated environment to host the required AWS Config data required for Amazon Q Business. We recommend that you deploy this solution in an audit account which is separate from the central log archive account.
 
-If you are deploying, this solution in AWS Organizations not managed by
-AWS Control tower, we still recommend you deploy it in an audit account
-which is separate from the central log account.
+Before we dive into the solution, let’s look at the prerequisites that are required to get started:
 
-Before we dive into the solution, let's look at the prerequisites that
-are required to get started:
-
-1.  An AWS account with access to the AWS Management Console of an Audit
-    account where this solution will be deployed.
-
-2.  [AWS
-    CLI](https://docs.aws.amazon.com/cli/latest/userguide/getting-started-install.html)
-    to deploy the necessary artifacts using [AWS
-    CloudFormation](https://docs.aws.amazon.com/AWSCloudFormation/latest/UserGuide/Welcome.html)
-
-3.  [SAM
-    CLI](https://docs.aws.amazon.com/serverless-application-model/latest/developerguide/serverless-sam-cli-install.html)
-    -- Install the SAM CLI. The Serverless Application Model Command
-    Line Interface (SAM CLI) is an extension of the AWS CLI that adds
-    functionality for building and testing Lambda applications.
+1. Necessary AWS Identity and Access Management (IAM) access in the log archive and audit account where this solution will be deployed.
+2. Access to the AWS Console of the audit account
+3. AWS CLI to deploy the necessary artifacts using AWS CloudFormation
+4. SAM CLI – Install the SAM CLI. The Serverless Application Model Command Line Interface (SAM CLI) is an extension of the AWS CLI that adds functionality for building and testing Lambda applications.
+5. Set up Q Business with the required permissions .
+6. Configure an IAM Identity Center instance for an Amazon Q Business application to enable managing end user access to your Amazon Q Business application.
 
 ## How to build and Deploy the Solution
 
@@ -174,6 +117,10 @@ logarchive account in your organization where is the source of AWS
 Config logs.\
 Parameter SourceAccountId : 0987654321
 
+After the SAM deployment completes, run the following SAM command and capture the OutputValue of OutputKey - DestinationBucketName. This S3 Bucket name will be used as a parameter when deploying the Q Business CloudFormation Template in Step 3.
+
+sam list stack-outputs --stack-name config-copy-stack --output table
+
 ### Step 3: Deploy and Configure Q Business
 
 Amazon Q Business is a service that allows you to build intelligent
@@ -221,7 +168,7 @@ Let\'s dive into the steps to deploy this solution.
       application.
 
     - **S3BucketName**: The name of the S3 bucket containing your
-      compliance data.
+      compliance data which was captured earlier.
 
     - **UseIDC**: Set to \"true\" if you want to use AWS IAM Identity
       Center for user authentication.
@@ -300,13 +247,16 @@ using login credentials. And interact using below questions:
 
 ![](images/Demo3.png)
 
+### Clean Up
+Delete the config-copy-stack application that you created, use the SAM CLI.
+sam delete
+Remove the S3 read-only role in the log account.
+aws iam delete-role \
+--role-name ConfigDataReadRole
+
+Delete Users and Groups in the Audit Account.
+Locate and delete the stack created by the CloudFormation template deployment
+
 ### Conclusion
 
-By integrating AWS Config, Amazon S3, and Amazon Q Business, you can
-unlock the power of natural language processing to gain valuable
-insights into your AWS environment. This solution empowers your team
-members to easily access and understand the configuration of their AWS
-resources, regardless of their technical expertise. As your cloud
-infrastructure evolves, this solution can help you stay on top of your
-resource configurations and make informed decisions to optimize your AWS
-environment.
+By integrating AWS Config and Amazon Q Business, you can unlock the power of natural language processing to gain valuable insights into your AWS environment. This solution empowers your team members to easily access and understand the configuration of their AWS resources. As your cloud infrastructure evolves, this solution can help you stay on top of your resource configurations and make informed decisions to optimize your AWS environment.
